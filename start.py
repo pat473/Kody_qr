@@ -347,7 +347,47 @@ class GeneratorQR:
                     self.bezpieczna_rezerwacja(j,rozmiar-9-i)
                     self.bezpieczna_rezerwacja(rozmiar-9-i,j)
 
+    def bezpieczne_wstawienie_danych(self,y,x,bit):
+            if self.matryca[y][x] is None:
+                self.matryca[y][x] = bit
+                return True
+            return False
 
+    def generowanie_wzoru_danych(self, indeks_x, czy_w_gore, indeks_bitu, ciag_danych):
+        rozmiar = len(self.matryca)
+        if czy_w_gore:
+            for y in range(rozmiar-1,-1,-1):
+                for i in range(2):
+                    sukces = self.bezpieczne_wstawienie_danych(y, indeks_x-i, ciag_danych[indeks_bitu])
+                    if sukces:
+                        indeks_bitu +=1
+        else:
+            for y in range(0,rozmiar,1):
+                for i in range(2):
+                    sukces = self.bezpieczne_wstawienie_danych(y, indeks_x-i, ciag_danych[indeks_bitu])
+                    if sukces:
+                        indeks_bitu +=1
+        return not czy_w_gore, indeks_bitu
+
+
+
+    def matryca_tworzenie_bitow_danych(self):
+        rozmiar = len(self.matryca)
+        indeks_x = rozmiar-1
+        indeks_bitu = 0
+        czy_w_gore = True
+        ciag_danych = self.podzial_na_bity()
+        while indeks_x >=0:
+            if indeks_x ==6:
+                indeks_x -=1
+            czy_w_gore, indeks_bitu = self.generowanie_wzoru_danych(indeks_x, czy_w_gore,indeks_bitu, ciag_danych)
+            indeks_x -=2
+
+
+
+
+
+ 
 
 
 
@@ -378,6 +418,22 @@ kod_qr.generuj_kod_korekcyjny()
 kod_qr.zrob_przeplot()
 
 kod_qr.podzial_na_bity()
+
+kod_qr.tworzenie_matrycy()
+
+kod_qr.matryca_tworzenie_wzorcow_wyszukiwania()
+
+kod_qr.matryca_tworzenie_separatorow()
+
+kod_qr.matryca_tworzenie_wzorcow_wyrownania()
+
+kod_qr.matryca_tworzenie_wzorcow_czasowych()
+
+kod_qr.matryca_tworzenie_ciemnego_modulu()
+
+kod_qr.matryca_tworzenie_miejsc_zarezerwowanych()
+
+kod_qr.matryca_tworzenie_bitow_danych()
 
 
 
