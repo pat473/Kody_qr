@@ -1,6 +1,9 @@
+import copy
+from PIL import Image
+
 from stale import rodzaj_trybu, pojemnosc_numeryczna, pojemnosc_alfanumeryczna, pojemnosc_bajtowa, \
     alfanumeryczne_wartosci, slowa_kodowe, tabela_poteg, tabela_logarytmow, slownik_bitow_reszty, wzor_wyszukiwajacy, \
-    slownik_wzorcow_wyrownania
+    slownik_wzorcow_wyrownania, ciag_bitow_dla_maski_oraz_poziomu_korekcji_bledow, ciag_bitow_dla_danej_wersji
 from stale import wskaznik_liczby_znakow, wzor_wyrownania
 
 class GeneratorQR:
@@ -321,7 +324,7 @@ class GeneratorQR:
             else:
                 self.matryca[pasek_poziomy_start_y][pasek_poziomy_start_x+i] = 0
                 self.matryca[pasek_pionowy_start_y+i][pasek_pionowy_start_x] = 0
-            czarne_pole = True
+            czarne_pole = not czarne_pole
 
     def matryca_tworzenie_ciemnego_modulu(self):
         self.matryca[(4*self.wersja)+9][8] = 1
@@ -347,29 +350,29 @@ class GeneratorQR:
                     self.bezpieczna_rezerwacja(j,rozmiar-9-i)
                     self.bezpieczna_rezerwacja(rozmiar-9-i,j)
 
-    def bezpieczne_wstawienie_danych(self,y,x,bit):
-            if self.matryca[y][x] is None:
-                self.matryca[y][x] = bit
-                return True
-            return False
 
     def generowanie_wzoru_danych(self, indeks_x, czy_w_gore, indeks_bitu, ciag_danych):
         rozmiar = len(self.matryca)
         if czy_w_gore:
             for y in range(rozmiar-1,-1,-1):
                 for i in range(2):
-                    sukces = self.bezpieczne_wstawienie_danych(y, indeks_x-i, ciag_danych[indeks_bitu])
-                    if sukces:
+                    if self.matryca[y][indeks_x-i] is None:
+                        self.matryca[y][indeks_x-i] = int(ciag_danych[indeks_bitu])
                         indeks_bitu +=1
         else:
             for y in range(0,rozmiar,1):
                 for i in range(2):
-                    sukces = self.bezpieczne_wstawienie_danych(y, indeks_x-i, ciag_danych[indeks_bitu])
-                    if sukces:
+                    if self.matryca[y][indeks_x-i] is None:
+                        self.matryca[y][indeks_x-i] = int(ciag_danych[indeks_bitu])
                         indeks_bitu +=1
         return not czy_w_gore, indeks_bitu
 
-
+    def zapamietanie_strefy_danych(self):
+        self.strefa_danych = []
+        for y in range(len(self.matryca)):
+            for x in range(len(self.matryca)):
+                if self.matryca[y][x] is None:
+                    self.strefa_danych.append((y,x))
 
     def matryca_tworzenie_bitow_danych(self):
         rozmiar = len(self.matryca)
@@ -383,11 +386,187 @@ class GeneratorQR:
             czy_w_gore, indeks_bitu = self.generowanie_wzoru_danych(indeks_x, czy_w_gore,indeks_bitu, ciag_danych)
             indeks_x -=2
 
+    def czy_odwrocic_bit(self, nr_maski, y,x):
+        if nr_maski==0:
+            return (y+x)%2 ==0
+        elif nr_maski==1:
+            return y %2 ==0
+        elif nr_maski==2:
+            return x % 3 ==0
+        elif nr_maski==3:
+            return (y+x)%3 ==0
+        elif nr_maski==4:
+            return ((y//2) + (x//3)) %2 ==0
+        elif nr_maski==5:
+            return ((y*x)%2) + ((y*x)%3) ==0
+        elif nr_maski==6:
+            return (((y*x)%2) + ((y*x)%3))%2 ==0
+        elif nr_maski==7:
+            return (((y+x)%2) + ((y*x)%3))%2 ==0
+
+    def nadanie_masek_dla_kopii_matrycy(self):
+        self.zmaskowane_matryce = []
+        for nr_maski in range(8):
+            kopia_matrycy = copy.deepcopy(self.matryca)
+            for y,x in self.strefa_danych:
+                if self.czy_odwrocic_bit(nr_maski, y,x):
+                    kopia_matrycy[y][x] ^= 1
+            self.zmaskowane_matryce.append(kopia_matrycy)
+        return self.zmaskowane_matryce
+
+    def obliczenie_punktow_karnych(self, dana_zmaskowana_matryca):
+        punkty_n1 =0
+        punkty_n2 =0
+        punkty_n3 =0
+        punkty_n4 =0
+        rozmiar = len(dana_zmaskowana_matryca)
+
+        for wiersz in dana_zmaskowana_matryca:
+            licznik =1
+            for x in range(1, rozmiar):
+                if wiersz[x] == wiersz[x-1]:
+                    licznik +=1
+                else:
+                    if licznik >=5:
+                        punkty_n1 +=3 + (licznik -5)
+                    licznik=1
+            if licznik >=5:
+                punkty_n1+=3 + (licznik-5)
+
+        for x in range(rozmiar):
+            licznik =1
+            for y in range(1, rozmiar):
+                if dana_zmaskowana_matryca[y][x] == dana_zmaskowana_matryca[y-1][x]:
+                    licznik+=1
+                else:
+                    if licznik >= 5:
+                        punkty_n1 += 3 + (licznik - 5)
+                    licznik = 1
+            if licznik >= 5:
+                punkty_n1 += 3 + (licznik - 5)
+
+        for y in range(rozmiar-1):
+            for x in range(rozmiar-1):
+                if dana_zmaskowana_matryca[y][x] == dana_zmaskowana_matryca[y][x+1] == dana_zmaskowana_matryca[y+1][x] == dana_zmaskowana_matryca[y+1][x+1]:
+                    punkty_n2 += 3
+
+        kombinacja_do_znalezienia1 = [0,0,0,0,1,0,1,1,1,0,1]
+        kombinacja_do_znalezienia2 = [1,0,1,1,1,0,1,0,0,0,0]
+        for wiersz in dana_zmaskowana_matryca:
+            for x in range(rozmiar-10):
+                wycinek = wiersz[x:x+11]
+                if wycinek == kombinacja_do_znalezienia1 or wycinek ==kombinacja_do_znalezienia2:
+                    punkty_n3 +=40
+        for x in range(rozmiar):
+            for y in range(rozmiar-10):
+                wycinek = []
+                for i in range(11):
+                    wycinek.append(dana_zmaskowana_matryca[y+i][x])
+                if wycinek == kombinacja_do_znalezienia1 or wycinek ==kombinacja_do_znalezienia2:
+                    punkty_n3 +=40
+
+        calkowita_liczba_pixeli = rozmiar*rozmiar
+        calkowita_liczba_czarnych_pixeli = 0
+        for wiersz in dana_zmaskowana_matryca:
+            for pixel in wiersz:
+                if pixel==1:
+                    calkowita_liczba_czarnych_pixeli+=1
+        procent = (calkowita_liczba_czarnych_pixeli/calkowita_liczba_pixeli)*100
+        odchylenie = abs(50-procent)
+        punkty_n4 += (odchylenie//5)*10
 
 
+        return punkty_n1 + punkty_n2 + punkty_n3 + punkty_n4
+
+    def porownanie_punktow_karnych(self):
+        self.nadanie_masek_dla_kopii_matrycy()
+        punkty = {}
+
+        for nr_maski, matryca in enumerate(self.zmaskowane_matryce):
+            self.uzupelnienie_zarezerwowanych_miejsc(matryca, nr_maski)
+
+            punkty[nr_maski] = self.obliczenie_punktow_karnych(matryca)
+
+        najmniej_punktow = min(punkty, key=punkty.get)
+
+        self.matryca = self.zmaskowane_matryce[najmniej_punktow]
+
+    def wybranie_bitow_do_uzupelnienia(self, poziom_korekcji, maska):
+        szukany_ciag = (poziom_korekcji, maska)
+        return ciag_bitow_dla_maski_oraz_poziomu_korekcji_bledow[szukany_ciag]
 
 
- 
+    def bezpieczne_uzupelnienie_rezerwacji(self,matryca,y,x,bit):
+        if matryca[y][x] == -1:
+            matryca[y][x] = bit
+            return True
+        return False
+
+    def uzupelnienie_zarezerwowanych_miejsc(self,matryca, maska):
+        dane_do_wstawienia = self.wybranie_bitow_do_uzupelnienia(self.poziom_korekcji, maska)
+        inddeks =0
+        rozmiar = len(matryca)
+        for i in range(9):
+            if self.bezpieczne_uzupelnienie_rezerwacji(matryca,8,i,int(dane_do_wstawienia[inddeks])):
+                inddeks +=1
+        for i in range(7,-1,-1):
+            if self.bezpieczne_uzupelnienie_rezerwacji(matryca,i, 8, int(dane_do_wstawienia[inddeks])):
+                inddeks += 1
+        inddeks = 0
+        for i in range(7):
+            if self.bezpieczne_uzupelnienie_rezerwacji(matryca,rozmiar-1-i,8,int(dane_do_wstawienia[inddeks])):
+                inddeks +=1
+        for i in range(rozmiar-8,rozmiar,1):
+            if self.bezpieczne_uzupelnienie_rezerwacji(matryca, 8,i,int(dane_do_wstawienia[inddeks])):
+                inddeks +=1
+        inddeks=0
+
+        if self.wersja >= 7:
+            dane_dla_wyzszych_wersji_do_wstawienia = ciag_bitow_dla_danej_wersji[self.wersja]
+
+            for i in range(6):
+                for j in range(3):
+                    if self.bezpieczne_uzupelnienie_rezerwacji(matryca,rozmiar-11+j,i,int(dane_dla_wyzszych_wersji_do_wstawienia[inddeks])):
+                        inddeks+=1
+            inddeks=0
+            for i in range(6):
+                for j in range(3):
+                    if self.bezpieczne_uzupelnienie_rezerwacji(matryca, i, rozmiar-11+j,int(dane_dla_wyzszych_wersji_do_wstawienia[inddeks])):
+                        inddeks+=1
+
+    def dodaj_strefe_ochronna(self):
+        stary_rozmiar = len(self.matryca)
+        nowa_szerokosc = stary_rozmiar + 8
+        nowa_matryca = []
+        for _ in range(4):
+            nowa_matryca.append([0]* nowa_szerokosc)
+
+        for wiersz in self.matryca:
+            nowy_wiersz = [0,0,0,0] + wiersz + [0,0,0,0]
+            nowa_matryca.append(nowy_wiersz)
+
+        for _ in range(4):
+            nowa_matryca.append([4]* nowa_szerokosc)
+
+        self.matryca = nowa_matryca
+
+    def wygeneruj_obraz(self, nazwa_pliku="kod_qr.png", skala=10):
+        rozmiar = len(self.matryca)
+        obraz = Image.new("RGB",(rozmiar,rozmiar), "white")
+        pixele = obraz.load()
+
+        for y in range(rozmiar):
+            for x in range(rozmiar):
+                if self.matryca[y][x] ==1:
+                    pixele[x,y] = (0,0,0)
+                else:
+                    pixele[x,y] = (255,255,255)
+
+        nowy_rozmiar = rozmiar * skala
+        obraz = obraz.resize((nowy_rozmiar,nowy_rozmiar), Image.Resampling.NEAREST)
+
+        obraz.save(nazwa_pliku)
+        print(f"Kod QR powstal pod nazwa: {nazwa_pliku}")
 
 
 
@@ -433,7 +612,18 @@ kod_qr.matryca_tworzenie_ciemnego_modulu()
 
 kod_qr.matryca_tworzenie_miejsc_zarezerwowanych()
 
+kod_qr.zapamietanie_strefy_danych()
+
 kod_qr.matryca_tworzenie_bitow_danych()
+
+kod_qr.porownanie_punktow_karnych()
+
+kod_qr.dodaj_strefe_ochronna()
+
+kod_qr.wygeneruj_obraz("kod_qr.png", skala=10)
+
+
+
 
 
 
