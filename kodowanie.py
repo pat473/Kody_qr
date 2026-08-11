@@ -445,7 +445,7 @@ class GeneratorQR:
     def __init__(self, dane_wejsciowe, poziom_korekcji):
         self.koder = KoderDanych(dane_wejsciowe, poziom_korekcji)
 
-    def wygeneruj(self):
+    def wygeneruj(self,nazwa):
         gotowe_bity = self.koder.przygotuj_wszystkie_dane()
         wersja = self.koder.wersja
         rozmiar = self.koder.rozmiar
@@ -453,10 +453,11 @@ class GeneratorQR:
         self.budowniczy = MajsterMatrycy(gotowe_bity, wersja,rozmiar, self.koder.poziom_korekcji)
 
         self.budowniczy.zbuduj_pelna_matryce()
-        self.budowniczy.wygeneruj_obraz("moj_kod_qr.png",10)
+        self.budowniczy.wygeneruj_obraz(nazwa,10)
 
 if __name__ == "__main__":
     dane_wejsciowe = input("Podaj dane do zakodowania: ")
     poziom_korekcji_bledow = input("Podaj jaki tryb korekcji bledow chcesz wykorzystac (L,M,Q,H): ")
+    nazwa_pliku = input("Podaj nazwe pliku z kodem QR: ")
     kodQR = GeneratorQR(dane_wejsciowe, poziom_korekcji_bledow)
-    kodQR.wygeneruj()
+    kodQR.wygeneruj(nazwa_pliku)

@@ -71,7 +71,6 @@ class SzablonQR:
 
                 self._wklej_dany_wzor(wzor_wyrownania,start_x,start_y)
 
-
     def tworzenie_wzorcow_czasowych(self):
         pasek_poziomy_start_x = 8
         pasek_poziomy_start_y = 6

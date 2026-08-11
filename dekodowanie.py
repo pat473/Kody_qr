@@ -1,14 +1,15 @@
 from stale import *
 from wspolne import SzablonQR, MetodyMasek
-
+from PIL import Image
 
 class DeMajsterMatrycy:
     def __init__(self, gotowa_matryca):
         self.matryca = gotowa_matryca
         self.usun_strefe_ochronna()
-        self.rozmiar = len(gotowa_matryca)
+        self.rozmiar = len(self.matryca)
         self.wersja = int(((self.rozmiar-21)/4)+1)
-        self.wzorzec_matryca = SzablonQR(self.rozmiar,self.wersja).wygeneruj()
+        self.wzorzec_matryca = SzablonQR(self.rozmiar, self.wersja)
+        self.wzorzec_matryca.wygeneruj()
 
         self.poziom_korekcji = None
         self.nr_maski = None
@@ -94,21 +95,18 @@ class DeMajsterMatrycy:
                 self.matryca[y][x] ^=1
 
     def odczytanie_ciagu_danych(self):
-        generator = SzablonQR(self.rozmiar,self.wersja)
-        trasa = generator.pobierz_trase_wezyka2()
+        trasa = self.wzorzec_matryca.pobierz_trase_wezyka2()
         odcztane_dane = ""
         for y,x in trasa:
             bit = str(self.matryca[y][x])
             odcztane_dane += bit
         return odcztane_dane
 
-    def zbierz_dane_z_matrycy(self):
+    def zdemajstruj_matryce(self):
         self.odczytaj_dane()
         self.odmaskowanie()
         return self.odczytanie_ciagu_danych()
 
-
-    # def zamien_obraz_na_matryce(self):
 
 class DekoderDanych:
 
@@ -126,11 +124,14 @@ class DekoderDanych:
         self.lista_syndromow = []
         self.dane = []
 
+        self.tryb_danych = ""
+        self.wskaznik_liczby_znakow = ""
 
+        self.nadmiarowe_marginesy = ""
         self.odczytany_tekst = ""
 
     def podzial_na_liczby(self):
-        for i in range(0,self.ciag_danych,8):
+        for i in range(0,len(self.ciag_danych),8):
             bajt = self.ciag_danych[i:i+8]
             if len(bajt)==8:
                 liczba = int(bajt,2)
@@ -164,6 +165,7 @@ class DekoderDanych:
             self.bloki_korekcyjne.append(blok_k)
 
         while len(rozrzucone_dane)>0:
+            dodano_cos = False
             for i in range(liczba_wszystkich_blokow):
                 if i < bloki_w_grupie_1:
                     aktualny_limit = wielkosc_blokow
@@ -172,12 +174,21 @@ class DekoderDanych:
 
                 if aktualny_limit > 0 and len(self.bloki_danych[i]) < aktualny_limit:
                     self.bloki_danych[i].append(rozrzucone_dane.pop(0))
+                    dodano_cos = True
+
+            if not dodano_cos:
+                break
 
         while len(rozrzucone_korekcje)>0:
+            dodano_cos = False
             for i in range(liczba_wszystkich_blokow):
 
                 if len(self.bloki_korekcyjne[i]) < wielkosc_korekcji:
                     self.bloki_korekcyjne[i].append(rozrzucone_korekcje.pop(0))
+                    dodano_cos = True
+
+            if not dodano_cos:
+                break
 
         gotowy_ciag = []
         for i in self.bloki_danych:
@@ -281,6 +292,7 @@ class DekoderDanych:
                 pozycje_bledow.append(i)
             if len(pozycje_bledow) == liczba_bledow:
                 return pozycje_bledow
+            raise ValueError(f"Uszkodzenie! Oczekiwano {liczba_bledow} błędów, znaleziono {len(pozycje_bledow)}.")
 
     def podstawienie_x_do_wielomianu(self,wspolczynniki,x):
         wynik = 0
@@ -317,7 +329,7 @@ class DekoderDanych:
         wynik = [0] * rozmiar_wyniku
         for i in range(len(w1)):
             for j in range(len(w2)):
-                wynik[i+j] += wynik[i+j] ^ self.mnozenie_gf(w1[i],w2[j])
+                wynik[i+j] ^= self.mnozenie_gf(w1[i],w2[j])
         return wynik
 
     def pochodna_wielomianu_gf(self,wielomian):
@@ -352,14 +364,216 @@ class DekoderDanych:
 
         self.dane = naprawione_dane
 
+    def zamiana_na_ciag_bitow(self, dane):
+        for bajt in dane:
+            bajt_binarnie = f"{bajt:08b}"
+            self.odczytany_tekst += bajt_binarnie
+
+    def ustal_tryb_kodowania(self, ciag_danych):
+        znacznik_trybu = ciag_danych[:4]
+        match znacznik_trybu:
+            case "0001":
+                self.tryb_danych = "Numeryczny"
+            case "0010":
+                self.tryb_danych = "Alfanumeryczny"
+            case "0100":
+                self.tryb_danych = "Bajtowy"
+
+        self.odczytany_tekst = self.odczytany_tekst[4:]
+
+    def wykorzystaj_wskaznik_liczby_znakow(self):
+        if self.tryb_danych == rodzaj_trybu.Numeryczny.name:
+            liczba_znakow = wskaznik_liczby_znakow["numeryczny"]
+        elif self.tryb_danych == rodzaj_trybu.Alfanumeryczny.name:
+            liczba_znakow = wskaznik_liczby_znakow["alfanumeryczny"]
+        else:
+            liczba_znakow = wskaznik_liczby_znakow["bajtowy"]
+
+        if 1 <= self.wersja <= 9:
+            liczba_zn = liczba_znakow[0]
+        elif 10 <= self.wersja <= 26:
+            liczba_zn = liczba_znakow[1]
+        else:
+            liczba_zn = liczba_znakow[2]
+
+        kawalek_bitow = self.odczytany_tekst[: liczba_zn]
+        self.odczytany_tekst = self.odczytany_tekst[liczba_zn:]
+        dlugosc_danych = int(kawalek_bitow,2)
+        return dlugosc_danych
 
 
+    def dlugosc_samej_wiadomosci(self):
+        dlugosc_danych = self.wykorzystaj_wskaznik_liczby_znakow()
+        if self.tryb_danych == rodzaj_trybu.Bajtowy.name:
+            wskaznik_dlugosci_danych = dlugosc_danych * 8
+            return wskaznik_dlugosci_danych
+        elif self.tryb_danych == rodzaj_trybu.Numeryczny.name:
+            wskaznik_dlugosci_danych = (dlugosc_danych // 3)*10
+            if dlugosc_danych % 3 == 1:
+                wskaznik_dlugosci_danych += 4
+            elif dlugosc_danych % 3 == 2:
+                wskaznik_dlugosci_danych += 7
+            return wskaznik_dlugosci_danych
+        else:
+            wskaznik_dlugosci_danych = (dlugosc_danych // 2) * 11
+            if dlugosc_danych % 2 == 1:
+                wskaznik_dlugosci_danych +=6
+            return wskaznik_dlugosci_danych
 
+    def rozdzielenie_wiadomosci_od_paddingu(self):
+        indeks_ciecia = self.dlugosc_samej_wiadomosci()
+        self.nadmiarowe_marginesy = self.odczytany_tekst[indeks_ciecia:]
+        self.odczytany_tekst = self.odczytany_tekst[:indeks_ciecia]
 
+    def dekodowanie(self):
+        tekst_koncowy = ""
+        if self.tryb_danych == rodzaj_trybu.Bajtowy.name:
+            for i in range(0,len(self.odczytany_tekst),8):
+                kawalek = self.odczytany_tekst[i:i+8]
+                liczba = int(kawalek,2)
+                tekst_koncowy += chr(liczba)
 
+        elif self.tryb_danych == rodzaj_trybu.Numeryczny.name:
+            for i in range(0,len(self.odczytany_tekst),10):
+                kawalek = self.odczytany_tekst[i:i+10]
+                liczba = int(kawalek,2)
+                if len(kawalek) == 10:
+                    liczba = f"{liczba:03d}"
+                elif len(kawalek) == 7:
+                    liczba = f"{liczba:02d}"
+                elif len(kawalek) == 4:
+                    liczba = f"{liczba:01d}"
+                tekst_koncowy += liczba
+        else:
+            for i in range(0,len(self.odczytany_tekst),11):
+                kawalek = self.odczytany_tekst[i:i+11]
+                liczba = int(kawalek,2)
+                if len(kawalek) == 11:
+                    indeks_1 = liczba // 45
+                    indeks_2 = liczba % 45
+                    tekst_koncowy += alfanumeryczne_wartosci[indeks_1]
+                    tekst_koncowy += alfanumeryczne_wartosci[indeks_2]
+                elif len(kawalek) ==6:
+                    liczba = int(kawalek)
+                    tekst_koncowy += alfanumeryczne_wartosci[liczba]
 
+        self.odczytany_tekst = tekst_koncowy
 
+    def zdekoduj_dane(self):
+        self.podzial_na_liczby()
+        self.antyprzeplot()
+        self.odwrotny_reed_solomon()
+        self.zamiana_na_ciag_bitow(self.dane)
+        self.ustal_tryb_kodowania(self.odczytany_tekst)
+        self.rozdzielenie_wiadomosci_od_paddingu()
+        self.dekodowanie()
 
+class CzytnikMatryc:
+    def __init__(self,sciezka):
+        self.sciezka = sciezka
 
+    def obraz_na_matryce(self):
+        # 1. Wczytanie obrazu i konwersja do odcieni szarości (L = Luminance)
+        obraz = Image.open(self.sciezka).convert('L')
+        piksele = obraz.load()
+        szerokosc, wysokosc = obraz.size
 
+        # 2. Szukanie granic kodu (odcinamy biały margines - Quiet Zone)
+        # Znajdujemy pierwsze i ostatnie czarne piksele z każdej strony
+        min_x, min_y = szerokosc, wysokosc
+        max_x, max_y = 0, 0
+
+        for y in range(wysokosc):
+            for x in range(szerokosc):
+                if piksele[x, y] < 128:  # Próg dla czarnego piksela
+                    if x < min_x: min_x = x
+                    if y < min_y: min_y = y
+                    if x > max_x: max_x = x
+                    if y > max_y: max_y = y
+
+        # 3. Obliczenie rozmiaru jednego modułu (kratki)
+        # Badamy górną krawędź lewego górnego oka (od min_x w prawo).
+        # Zgodnie ze standardem, to oko ma dokładnie 7 kratek szerokości.
+        dlugosc_oka_w_pikselach = 0
+        for x in range(min_x, max_x + 1):
+            if piksele[x, min_y] < 128:
+                dlugosc_oka_w_pikselach += 1
+            else:
+                break  # Dotarliśmy do białej przerwy
+
+        rozmiar_modulu = dlugosc_oka_w_pikselach / 7.0
+
+        # 4. Obliczenie docelowego rozmiaru całej matrycy (np. 21x21)
+        szerokosc_kodu_piksele = (max_x - min_x) + 1
+        wymiar_matrycy = int(round(szerokosc_kodu_piksele / rozmiar_modulu))
+
+        matryca = []
+
+        # 5. Próbkowanie siatki (czytanie wartości z samego środka kratek)
+        for wiersz in range(wymiar_matrycy):
+            rzad = []
+            for kolumna in range(wymiar_matrycy):
+                # Przesuwamy się o 'wiersz' i 'kolumna', ale dodajemy 0.5,
+                # by celować dokładnie w ŚRODEK pikselowy danej kratki (omijamy rozmyte brzegi)
+                srodek_x = min_x + int((kolumna + 0.5) * rozmiar_modulu)
+                srodek_y = min_y + int((wiersz + 0.5) * rozmiar_modulu)
+
+                # Bezpiecznik na wypadek błędów zaokrągleń przy samym brzegu
+                srodek_x = min(srodek_x, szerokosc - 1)
+                srodek_y = min(srodek_y, wysokosc - 1)
+
+                jasnosc = piksele[srodek_x, srodek_y]
+
+                # Standard QR: Ciemny moduł = 1 (True), Jasny moduł = 0 (False)
+                bit = 1 if jasnosc < 128 else 0
+                rzad.append(bit)
+
+            matryca.append(rzad)
+
+        nowa_szerokosc = wymiar_matrycy + 8
+        pusty_wiersz = [0] * nowa_szerokosc
+
+        matryca_z_marginesem = []
+
+        # 1. Dodajemy 4 puste (białe) wiersze na samej górze
+        for _ in range(4):
+            matryca_z_marginesem.append(pusty_wiersz.copy())
+
+        # 2. Bierzemy nasze sczytane rzędy kodu i po bokach dodajemy po 4 zera
+        for rzad in matryca:
+            nowy_rzad = [0] * 4 + rzad + [0] * 4
+            matryca_z_marginesem.append(nowy_rzad)
+
+        # 3. Dodajemy 4 puste wiersze na samym dole
+        for _ in range(4):
+            matryca_z_marginesem.append(pusty_wiersz.copy())
+
+        return matryca_z_marginesem
+
+class SkanerQR:
+    def __init__(self, sciezka_do_obrazu):
+        self.sciezka = sciezka_do_obrazu
+
+    def zdekoduj(self):
+
+        czytnik = CzytnikMatryc(self.sciezka)
+        surowa_matryca = czytnik.obraz_na_matryce()
+
+        demajster = DeMajsterMatrycy(surowa_matryca)
+        surowy_ciag_bitow = demajster.zdemajstruj_matryce()
+        wersja = demajster.wersja
+        poziom_korekcji = demajster.poziom_korekcji
+
+        dekoder = DekoderDanych(surowy_ciag_bitow,wersja,poziom_korekcji)
+        dekoder.zdekoduj_dane()
+
+        finalowa_wiadomosc = dekoder.odczytany_tekst
+
+        return finalowa_wiadomosc
+
+if __name__ == "__main__":
+    sciezka_pliku = input("Podaj sciezke pliku do grafiki z kodem: ")
+    skaner = SkanerQR(sciezka_pliku)
+    zdekodowana_wiadomosc = skaner.zdekoduj()
+    print(zdekodowana_wiadomosc)
 
