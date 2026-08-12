@@ -1,3 +1,5 @@
+from matematyka import OperacjeNaCieleGalois
+from program.matematyka import MatematykaInna
 from stale import *
 from wspolne import SzablonQR, MetodyMasek
 from PIL import Image
@@ -197,29 +199,13 @@ class DekoderDanych:
             gotowy_ciag.append(j)
         self.bajty_danych_i_korekcji = gotowy_ciag
 
-    def mnozenie_gf(self,a,b):
-            if a == 0 or b == 0:
-                return 0
-            suma_poteg = tabela_logarytmow[a] + tabela_logarytmow[b]
-            suma_poteg = suma_poteg % 255
-            return tabela_poteg[suma_poteg]
-
-    def dzielenie_gf(self,a,b):
-        if b ==0:
-            raise ZeroDivisionError("Dzielenie przez zero w Ciele Galois")
-        if a ==0:
-            return 0
-        roznica_poteg = tabela_logarytmow[a] - tabela_logarytmow[b]
-        roznica_poteg = ( roznica_poteg+255)%255
-        return tabela_poteg[roznica_poteg]
-
     def obliczanie_syndromow(self, liczba_bajtow_korekcyjnych, gotowy_ciag):
         wyrazy_ciagu = len(gotowy_ciag)
 
         for syndrom in range(liczba_bajtow_korekcyjnych):
             wynik = 0
             for i in range(wyrazy_ciagu):
-                mnozenie = self.mnozenie_gf(wynik,tabela_poteg[syndrom])
+                mnozenie = OperacjeNaCieleGalois.mnozenie_gf(wynik,tabela_poteg[syndrom])
                 dodawanie = mnozenie ^ gotowy_ciag[i]
                 wynik = dodawanie
             self.lista_syndromow.append(wynik)
@@ -227,7 +213,6 @@ class DekoderDanych:
             if element != 0:
                 return False
         return True
-
 
     def algorytm_berlekampa_masseya(self):
         glowny_wielomian = [1]
@@ -241,10 +226,9 @@ class DekoderDanych:
 
             for i in range(1, len(glowny_wielomian)):
                 if aktualna_iteracja - i >= 0:
-                    iloczyn = self.mnozenie_gf(glowny_wielomian[i],self.lista_syndromow[aktualna_iteracja-i])
+                    iloczyn = OperacjeNaCieleGalois.mnozenie_gf(glowny_wielomian[i],self.lista_syndromow[aktualna_iteracja-i])
                     suma_iloczynow = suma_iloczynow ^ iloczyn
             rozbieznosc = rozbieznosc ^ suma_iloczynow
-
 
             if rozbieznosc ==0:
                 licznik_przesuniecia +=1
@@ -252,8 +236,8 @@ class DekoderDanych:
                     tymczasowa_kopia = glowny_wielomian.copy()
                     skorygowana_kopia = []
                     for element in kopia_wielomianu:
-                        pomnozony = self.mnozenie_gf(element,rozbieznosc)
-                        podzielony = self.dzielenie_gf(pomnozony,ostatnia_wartosc_rozbieznosci)
+                        pomnozony = OperacjeNaCieleGalois.mnozenie_gf(element,rozbieznosc)
+                        podzielony = OperacjeNaCieleGalois.dzielenie_gf(pomnozony,ostatnia_wartosc_rozbieznosci)
                         skorygowana_kopia.append(podzielony)
                     kopia_wielomianu = skorygowana_kopia
 
@@ -287,34 +271,27 @@ class DekoderDanych:
         pozycje_bledow = []
         for i in range(len(gotowy_ciag)):
             mnoznik_alfa = tabela_poteg[255-i]
-            wynik = self.podstawienie_x_do_wielomianu(wielomian,mnoznik_alfa)
+            wynik = MatematykaInna.podstawienie_x_do_wielomianu(wielomian,mnoznik_alfa)
             if wynik == 0:
                 pozycje_bledow.append(i)
             if len(pozycje_bledow) == liczba_bledow:
                 return pozycje_bledow
             raise ValueError(f"Uszkodzenie! Oczekiwano {liczba_bledow} błędów, znaleziono {len(pozycje_bledow)}.")
 
-    def podstawienie_x_do_wielomianu(self,wspolczynniki,x):
-        wynik = 0
-        for i in wspolczynniki:
-            wynik = self.mnozenie_gf(wynik,x)
-            wynik = wynik ^ i
-        return wynik
-
     def algorytm_forneya(self, gotowy_ciag):
         wielomian = self.algorytm_berlekampa_masseya()
         uszkodzone_pozycje = self.wyszukiwanie_chiena(gotowy_ciag)
-        ewaluator_bledow = self.mnozenie_wielomianow_gf(wielomian,self.lista_syndromow)
-        pochodna_wielomianu = self.pochodna_wielomianu_gf(wielomian)
+        ewaluator_bledow = OperacjeNaCieleGalois.mnozenie_wielomianow_gf(wielomian,self.lista_syndromow)
+        pochodna_wielomianu = OperacjeNaCieleGalois.pochodna_wielomianu_gf(wielomian)
 
         for pozycja in uszkodzone_pozycje:
 
             x = tabela_poteg[(255-pozycja)%255]
-            wartosc_ewaluatora = self.podstawienie_x_do_wielomianu(ewaluator_bledow,x)
-            wartosc_pochodnej = self.podstawienie_x_do_wielomianu(pochodna_wielomianu,x)
+            wartosc_ewaluatora = MatematykaInna.podstawienie_x_do_wielomianu(ewaluator_bledow,x)
+            wartosc_pochodnej = MatematykaInna.podstawienie_x_do_wielomianu(pochodna_wielomianu,x)
 
-            surowa_maska_bledu = self.dzielenie_gf(wartosc_ewaluatora, wartosc_pochodnej)
-            ostateczna_maska_bledu = self.mnozenie_gf(surowa_maska_bledu,tabela_poteg[pozycja])
+            surowa_maska_bledu = OperacjeNaCieleGalois.dzielenie_gf(wartosc_ewaluatora, wartosc_pochodnej)
+            ostateczna_maska_bledu = OperacjeNaCieleGalois.mnozenie_gf(surowa_maska_bledu,tabela_poteg[pozycja])
 
             wadliwy_bajt = gotowy_ciag[pozycja]
             naprawiony_bajt = wadliwy_bajt ^ ostateczna_maska_bledu
@@ -322,28 +299,6 @@ class DekoderDanych:
             gotowy_ciag[pozycja] = naprawiony_bajt
 
         return gotowy_ciag
-
-
-    def mnozenie_wielomianow_gf(self,w1,w2):
-        rozmiar_wyniku = len(w1) + len(w2) -1
-        wynik = [0] * rozmiar_wyniku
-        for i in range(len(w1)):
-            for j in range(len(w2)):
-                wynik[i+j] ^= self.mnozenie_gf(w1[i],w2[j])
-        return wynik
-
-    def pochodna_wielomianu_gf(self,wielomian):
-        wynik =[]
-        for i in range(len(wielomian)-1):
-            potega = len(wielomian)-1-i
-            if potega %2 != 0:
-                wynik.append(wielomian[i])
-            else:
-                wynik.append(0)
-
-        if not wynik:
-            return[0]
-        return wynik
 
     def odwrotny_reed_solomon(self):
         parametry = slowa_kodowe[self.wersja, self.poziom_korekcji]
@@ -571,9 +526,11 @@ class SkanerQR:
 
         return finalowa_wiadomosc
 
-if __name__ == "__main__":
-    sciezka_pliku = input("Podaj sciezke pliku do grafiki z kodem: ")
-    skaner = SkanerQR(sciezka_pliku)
-    zdekodowana_wiadomosc = skaner.zdekoduj()
-    print(zdekodowana_wiadomosc)
 
+
+# if __name__ == "__main__":
+#     sciezka_pliku = input("Podaj sciezke pliku do grafiki z kodem: ")
+#     skaner = SkanerQR(sciezka_pliku)
+#     zdekodowana_wiadomosc = skaner.zdekoduj()
+#     print(zdekodowana_wiadomosc)
+#

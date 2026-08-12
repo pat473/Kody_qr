@@ -1,6 +1,7 @@
 import copy
 from PIL import Image
 
+from matematyka import OperacjeNaCieleGalois
 from stale import *
 from wspolne import SzablonQR
 from wspolne import MetodyMasek
@@ -159,13 +160,6 @@ class KoderDanych:
                 self.bloki_danych.append(blok)
                 obecny_ind += wielkosc_blokow
 
-    def mnozenie_gf(self,a,b):
-            if a == 0 or b == 0:
-                return 0
-            suma_poteg = tabela_logarytmow[a] + tabela_logarytmow[b]
-            suma_poteg = suma_poteg % 255
-            return tabela_poteg[suma_poteg]
-
     def tworzenie_wielomianu_generujacego(self):
             generator = [1]
             parametry = slowa_kodowe[(self.wersja, self.poziom_korekcji)]
@@ -174,7 +168,7 @@ class KoderDanych:
                 nowa_lista1 = generator + [0]
                 nowa_lista2 = [0]
                 for liczba in generator:
-                    pomnozona = self.mnozenie_gf(liczba, tabela_poteg[i])
+                    pomnozona = OperacjeNaCieleGalois.mnozenie_gf(liczba, tabela_poteg[i])
                     nowa_lista2.append(pomnozona)
                 wynik = []
                 for j in range(0, len(nowa_lista2)):
@@ -192,7 +186,7 @@ class KoderDanych:
                     continue
 
                 for j in range(0,len(generator)):
-                    wynik = self.mnozenie_gf(wyraz_wiodacy,generator[j])
+                    wynik = OperacjeNaCieleGalois.mnozenie_gf(wyraz_wiodacy,generator[j])
                     wiadomosc[i +j] = wiadomosc[i+j]^wynik
             return wiadomosc[-bajty_korekcyjne:]
 
@@ -455,9 +449,12 @@ class GeneratorQR:
         self.budowniczy.zbuduj_pelna_matryce()
         self.budowniczy.wygeneruj_obraz(nazwa,10)
 
-if __name__ == "__main__":
-    dane_wejsciowe = input("Podaj dane do zakodowania: ")
-    poziom_korekcji_bledow = input("Podaj jaki tryb korekcji bledow chcesz wykorzystac (L,M,Q,H): ")
-    nazwa_pliku = input("Podaj nazwe pliku z kodem QR: ")
-    kodQR = GeneratorQR(dane_wejsciowe, poziom_korekcji_bledow)
-    kodQR.wygeneruj(nazwa_pliku)
+
+
+
+# if __name__ == "__main__":
+#     dane_wejsciowe = input("Podaj dane do zakodowania: ")
+#     poziom_korekcji_bledow = input("Podaj jaki tryb korekcji bledow chcesz wykorzystac (L,M,Q,H): ")
+#     nazwa_pliku = input("Podaj nazwe pliku z kodem QR: ")
+#     kodQR = GeneratorQR(dane_wejsciowe, poziom_korekcji_bledow)
+#     kodQR.wygeneruj(nazwa_pliku)

@@ -1,4 +1,4 @@
-from stale import *
+from program.stale import *
 
 class SzablonQR:
     def __init__(self,rozmiar, wersja,):

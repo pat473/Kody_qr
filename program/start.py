@@ -1,5 +1,5 @@
-from kodowanie import GeneratorQR
-from dekodowanie import SkanerQR
+from program.kodowanie import GeneratorQR
+from program.dekodowanie import SkanerQR
 
 def menu_glowne():
     print("MENU GLOWNE")
