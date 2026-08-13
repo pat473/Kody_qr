@@ -166,4 +166,14 @@ class MetodyMasek:
         elif nr_maski == 7:
             return (((y + x) % 2) + ((y * x) % 3)) % 2 == 0
 
+class Przygotowanie:
+    @staticmethod
+    def pobierz_parametry_qr(wersja, korekcja, *wybrane_klucze):
+        parametry = slowa_kodowe[wersja, korekcja]
+        wynik = []
+        for klucz in wybrane_klucze:
+            wynik.append(parametry[klucz])
+        return wynik
+
+
 

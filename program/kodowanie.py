@@ -1,10 +1,8 @@
 import copy
 from PIL import Image
 
-from matematyka import OperacjeNaCieleGalois
-from stale import *
-from wspolne import SzablonQR
-from wspolne import MetodyMasek
+from matematyka import OperacjeNaCieleGalois, MatematykaInna
+from wspolne import *
 
 class KoderDanych:
     def __init__(self, dane_wejsciowe, poziom_korekcji):
@@ -16,6 +14,8 @@ class KoderDanych:
         self.ciag_bitow = ""
         self.bajty_danych = []
         self.bloki_danych = []
+        self.bloki_korekcyjne = []
+        self.finalny_ciag = ""
 
     def wybierz_tryb_kodowania(self):
             if all(znak.isdigit() for znak in self.dane):
@@ -51,7 +51,6 @@ class KoderDanych:
                     return
 
             raise ValueError("Dane są za długie, program nie obsłuży tak wielkich danych.")
-
 
     def dodaj_wskaznik_liczby_znakow(self):
 
@@ -116,27 +115,26 @@ class KoderDanych:
                 self.ciag_bitow += liczba
 
     def dodanie_paddingu(self):
-            parametry = slowa_kodowe[(self.wersja, self.poziom_korekcji)]
-            max_bajty = parametry["liczba_danych"]
-            maksymalna_liczb_bitow = max_bajty * 8
-            ile_brakuje_do_limitu = maksymalna_liczb_bitow - len(self.ciag_bitow)
-            if ile_brakuje_do_limitu >= 4:
-                self.ciag_bitow += "0"*4
-            elif 0<ile_brakuje_do_limitu < 4:
-                self.ciag_bitow += "0"* ile_brakuje_do_limitu
+        max_bajty = Przygotowanie.pobierz_parametry_qr(self.wersja, self.poziom_korekcji, "liczba_danych")
+        maksymalna_liczb_bitow = max_bajty[0] * 8
+        ile_brakuje_do_limitu = maksymalna_liczb_bitow - len(self.ciag_bitow)
+        if ile_brakuje_do_limitu >= 4:
+            self.ciag_bitow += "0"*4
+        elif 0<ile_brakuje_do_limitu < 4:
+            self.ciag_bitow += "0"* ile_brakuje_do_limitu
 
-            while len(self.ciag_bitow) % 8 !=0:
-                self.ciag_bitow += "0"
+        while len(self.ciag_bitow) % 8 !=0:
+            self.ciag_bitow += "0"
 
-            czy_pierwszy_bajt = True
+        czy_pierwszy_bajt = True
 
-            while len(self.ciag_bitow) <maksymalna_liczb_bitow:
-                if czy_pierwszy_bajt:
-                    self.ciag_bitow += "11101100"
-                else:
-                    self.ciag_bitow += "00010001"
+        while len(self.ciag_bitow) <maksymalna_liczb_bitow:
+            if czy_pierwszy_bajt:
+                self.ciag_bitow += "11101100"
+            else:
+                self.ciag_bitow += "00010001"
 
-                czy_pierwszy_bajt = not czy_pierwszy_bajt
+            czy_pierwszy_bajt = not czy_pierwszy_bajt
 
     def przygotowanie_danych(self):
             for i in range(0,len(self.ciag_bitow),8):
@@ -145,26 +143,23 @@ class KoderDanych:
                 self.bajty_danych.append(liczba)
 
     def podzial_na_bloki(self):
-            obecny_ind = 0
+        obecny_ind = 0
+        bloki_1, bloki_2, wielkosc_1, wielkosc_2 = Przygotowanie.pobierz_parametry_qr(self.wersja, self.poziom_korekcji, "bloki_w_grupie1", "bloki_w_grupie2", "liczba_slow_danych_dla_blokow_grupy1", "liczba_slow_danych_dla_blokow_grupy2")
 
-            parametry = slowa_kodowe[(self.wersja, self.poziom_korekcji)]
-            for _ in range(parametry["bloki_w_grupie1"]):
-                wielkosc_blokow = parametry["liczba_slow_danych_dla_blokow_grupy1"]
-                blok = self.bajty_danych[obecny_ind:obecny_ind+wielkosc_blokow]
-                self.bloki_danych.append(blok)
-                obecny_ind += wielkosc_blokow
+        for _ in range(bloki_1):
+            blok = self.bajty_danych[obecny_ind:obecny_ind+wielkosc_1]
+            self.bloki_danych.append(blok)
+            obecny_ind += wielkosc_1
 
-            for _ in range(parametry["bloki_w_grupie2"]):
-                wielkosc_blokow = parametry["liczba_slow_danych_dla_blokow_grupy2"]
-                blok = self.bajty_danych[obecny_ind:obecny_ind+wielkosc_blokow]
-                self.bloki_danych.append(blok)
-                obecny_ind += wielkosc_blokow
+        for _ in range(bloki_2):
+            blok = self.bajty_danych[obecny_ind:obecny_ind+wielkosc_2]
+            self.bloki_danych.append(blok)
+            obecny_ind += wielkosc_2
 
     def tworzenie_wielomianu_generujacego(self):
             generator = [1]
-            parametry = slowa_kodowe[(self.wersja, self.poziom_korekcji)]
-            liczba_iteracji = parametry["slowa_korekcyjne_na_blok"]
-            for i in range(liczba_iteracji):
+            liczba_iteracji = Przygotowanie.pobierz_parametry_qr(self.wersja,self.poziom_korekcji, "slowa_korekcyjne_na_blok")
+            for i in range(liczba_iteracji[0]):
                 nowa_lista1 = generator + [0]
                 nowa_lista2 = [0]
                 for liczba in generator:
@@ -176,7 +171,8 @@ class KoderDanych:
                 generator = wynik
             return generator
 
-    def oblicz_bajty_korekcyjne(self, blok_danych, generator):
+    @staticmethod
+    def oblicz_bajty_korekcyjne(blok_danych, generator):
             bajty_korekcyjne = len(generator)-1
             wiadomosc = blok_danych +(bajty_korekcyjne*[0])
             for i in range(len(blok_danych)):
@@ -192,8 +188,6 @@ class KoderDanych:
 
     def generuj_kod_korekcyjny(self):
             generator = self.tworzenie_wielomianu_generujacego()
-
-            self.bloki_korekcyjne = []
 
             for blok in self.bloki_danych:
                 reszta = self.oblicz_bajty_korekcyjne(blok, generator)
@@ -219,16 +213,12 @@ class KoderDanych:
             ostateczna_wiadomosc = przetasowane_dane + przetasowane_korekcje
             return ostateczna_wiadomosc
 
-    def podzial_na_bity(self):
-            do_podzialu = self.zrob_przeplot()
-            przekonwertowane_gotowe_dane = ""
-            for liczba in do_podzialu:
-                bit = bin(liczba)[2:].zfill(8)
-                przekonwertowane_gotowe_dane += bit
-
-            bity_reszty = slownik_bitow_reszty[self.wersja]
-            przekonwertowane_gotowe_dane += "0"* bity_reszty
-            return przekonwertowane_gotowe_dane
+    def komplementowanie_danych(self):
+        do_podzialu = self.zrob_przeplot()
+        ciag_bitow = MatematykaInna.zamiana_na_bity(do_podzialu)
+        bity_reszty = slownik_bitow_reszty[self.wersja]
+        self.finalny_ciag += ciag_bitow + ("0" * bity_reszty)
+        return self.finalny_ciag
 
     def przygotuj_wszystkie_dane(self):
         self.wybierz_tryb_kodowania()
@@ -239,7 +229,7 @@ class KoderDanych:
         self.przygotowanie_danych()
         self.podzial_na_bloki()
         self.generuj_kod_korekcyjny()
-        return self.podzial_na_bity()
+        return self.komplementowanie_danych()
 
 class MajsterMatrycy:
     def __init__(self, gotowe_bity, wersja, rozmiar, poziom_korekcji):
@@ -262,9 +252,6 @@ class MajsterMatrycy:
         lista_bitow = list(ciag_bitow)
 
         for y,x in trasa:
-            # if not lista_bitow:
-            #     break
-
             bit = int(lista_bitow.pop(0))
             self.matryca[y][x] = bit
 
@@ -278,7 +265,8 @@ class MajsterMatrycy:
             self.zmaskowane_matryce.append(kopia_matrycy)
         return self.zmaskowane_matryce
 
-    def obliczenie_punktow_karnych(self, dana_zmaskowana_matryca):
+    @staticmethod
+    def obliczenie_punktow_karnych(dana_zmaskowana_matryca):
         punkty_n1 =0
         punkty_n2 =0
         punkty_n3 =0
@@ -354,11 +342,13 @@ class MajsterMatrycy:
 
         self.matryca = self.zmaskowane_matryce[najmniej_punktow]
 
-    def wybranie_bitow_do_uzupelnienia(self, poziom_korekcji, maska):
+    @staticmethod
+    def wybranie_bitow_do_uzupelnienia(poziom_korekcji, maska):
         szukany_ciag = (poziom_korekcji, maska)
         return ciag_bitow_dla_maski_oraz_poziomu_korekcji_bledow[szukany_ciag]
 
-    def bezpieczne_uzupelnienie_rezerwacji(self,matryca,y,x,bit):
+    @staticmethod
+    def bezpieczne_uzupelnienie_rezerwacji(matryca,y,x,bit):
         if matryca[y][x] == -1:
             matryca[y][x] = bit
             return True
@@ -448,9 +438,6 @@ class GeneratorQR:
 
         self.budowniczy.zbuduj_pelna_matryce()
         self.budowniczy.wygeneruj_obraz(nazwa,10)
-
-
-
 
 # if __name__ == "__main__":
 #     dane_wejsciowe = input("Podaj dane do zakodowania: ")

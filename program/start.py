@@ -12,8 +12,8 @@ def menu_glowne():
             dane_wejsciowe = input("Podaj dane do zakodowania: ")
             poziom_korekcji_bledow = input("Podaj jaki tryb korekcji bledow chcesz wykorzystac (L,M,Q,H): ")
             nazwa = input("Podaj nazwe pliku z kodem QR: ")
-            kodQR = GeneratorQR(dane_wejsciowe, poziom_korekcji_bledow)
-            kodQR.wygeneruj(nazwa)
+            kod_qr = GeneratorQR(dane_wejsciowe, poziom_korekcji_bledow)
+            kod_qr.wygeneruj(nazwa)
         case "2":
             sciezka = input("Podaj sciezke do grafiki z kodem QR: ")
             skaner = SkanerQR(sciezka)

@@ -1,7 +1,6 @@
-from matematyka import OperacjeNaCieleGalois
-from program.matematyka import MatematykaInna
+from matematyka import OperacjeNaCieleGalois, MatematykaInna
 from stale import *
-from wspolne import SzablonQR, MetodyMasek
+from wspolne import SzablonQR, MetodyMasek, Przygotowanie
 from PIL import Image
 
 class DeMajsterMatrycy:
@@ -132,35 +131,21 @@ class DekoderDanych:
         self.nadmiarowe_marginesy = ""
         self.odczytany_tekst = ""
 
-    def podzial_na_liczby(self):
-        for i in range(0,len(self.ciag_danych),8):
-            bajt = self.ciag_danych[i:i+8]
-            if len(bajt)==8:
-                liczba = int(bajt,2)
-                self.bajty_dziesietne.append(liczba)
-
-
     def antyprzeplot(self):
-        parametry = slowa_kodowe[self.wersja, self.poziom_korekcji]
-        liczba_danych = parametry["liczba_danych"]
-        bloki_w_grupie_1 = parametry["bloki_w_grupie1"]
-        bloki_w_grupie_2 = parametry["bloki_w_grupie2"]
-        wielkosc_blokow = parametry["liczba_slow_danych_dla_blokow_grupy1"]
-        wielkosc_blokow2 = parametry["liczba_slow_danych_dla_blokow_grupy2"]
-        wielkosc_korekcji = parametry["slowa_korekcyjne_na_blok"]
-        liczba_wszystkich_blokow = bloki_w_grupie_1 + bloki_w_grupie_2
+        liczba_danych, bloki_1, bloki_2, wielkosc_1, wielkosc_2, wielkosc_korekcji = Przygotowanie.pobierz_parametry_qr(self.wersja,self.poziom_korekcji, "liczba_danych", "bloki_w_grupie1", "bloki_w_grupie2", "liczba_slow_danych_dla_blokow_grupy1", "liczba_slow_danych_dla_blokow_grupy2", "slowa_korekcyjne_na_blok")
 
+        liczba_wszystkich_blokow = bloki_1 + bloki_2
 
         rozrzucone_dane = self.bajty_dziesietne[:liczba_danych]
         rozrzucone_korekcje = self.bajty_dziesietne[liczba_danych:]
 
-        for _ in range(bloki_w_grupie_1):
+        for _ in range(bloki_1):
             blok_d = []
             blok_k = []
             self.bloki_danych.append(blok_d)
             self.bloki_korekcyjne.append(blok_k)
 
-        for _ in range(bloki_w_grupie_2):
+        for _ in range(bloki_2):
             blok_d = []
             blok_k = []
             self.bloki_danych.append(blok_d)
@@ -169,10 +154,10 @@ class DekoderDanych:
         while len(rozrzucone_dane)>0:
             dodano_cos = False
             for i in range(liczba_wszystkich_blokow):
-                if i < bloki_w_grupie_1:
-                    aktualny_limit = wielkosc_blokow
+                if i < bloki_1:
+                    aktualny_limit = wielkosc_1
                 else:
-                    aktualny_limit = wielkosc_blokow2
+                    aktualny_limit = wielkosc_2
 
                 if aktualny_limit > 0 and len(self.bloki_danych[i]) < aktualny_limit:
                     self.bloki_danych[i].append(rozrzucone_dane.pop(0))
@@ -319,11 +304,6 @@ class DekoderDanych:
 
         self.dane = naprawione_dane
 
-    def zamiana_na_ciag_bitow(self, dane):
-        for bajt in dane:
-            bajt_binarnie = f"{bajt:08b}"
-            self.odczytany_tekst += bajt_binarnie
-
     def ustal_tryb_kodowania(self, ciag_danych):
         znacznik_trybu = ciag_danych[:4]
         match znacznik_trybu:
@@ -415,10 +395,13 @@ class DekoderDanych:
         self.odczytany_tekst = tekst_koncowy
 
     def zdekoduj_dane(self):
-        self.podzial_na_liczby()
+        self.bajty_dziesietne = MatematykaInna.zamiana_na_bajty(self.ciag_danych)
+
         self.antyprzeplot()
         self.odwrotny_reed_solomon()
-        self.zamiana_na_ciag_bitow(self.dane)
+
+        self.odczytany_tekst = MatematykaInna.zamiana_na_bity(self.dane)
+
         self.ustal_tryb_kodowania(self.odczytany_tekst)
         self.rozdzielenie_wiadomosci_od_paddingu()
         self.dekodowanie()

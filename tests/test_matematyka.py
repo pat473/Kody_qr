@@ -50,3 +50,21 @@ def test_pochodna_wielomianu_gf(wielomian,oczekiwany_wynik):
 ])
 def test_podstawienie_x_do_wielomianu(x, wielomian, oczekiwany_wynik):
     assert MatematykaInna.podstawienie_x_do_wielomianu(x, wielomian) == oczekiwany_wynik, "Podstawianie wartosci przebiega blednie. "
+
+@pytest.mark.parametrize("ciag_danych, oczekiwane_bajty", [
+    ("00000000",[0]),
+    ("11111111",[255]),
+    ("01010101",[85]),
+    ("1111000000001111",[240,15]),
+])
+def test_zamiana_na_bajty(ciag_danych, oczekiwane_bajty):
+    assert MatematykaInna.zamiana_na_bajty(ciag_danych) == oczekiwane_bajty, "Niepoprawne zamienienie na bajty. "
+
+@pytest.mark.parametrize("dane, oczekiwane_bity", [
+    ([0],"00000000"),
+    ([255],"11111111"),
+    ([145],"10010001"),
+    ([1,1],"0000000100000001")
+])
+def test_zamiana_na_bity(dane, oczekiwane_bity):
+    assert MatematykaInna.zamiana_na_bity(dane) == oczekiwane_bity, "Niepoprawne zamienienie na bity. "

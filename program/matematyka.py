@@ -50,3 +50,20 @@ class MatematykaInna:
             wynik = OperacjeNaCieleGalois.mnozenie_gf(wynik,x)
             wynik = wynik ^ i
         return wynik
+
+    @staticmethod
+    def zamiana_na_bajty(ciag_danych):
+        bajty_dziesietne = []
+        for i in range(0,len(ciag_danych),8):
+            bajt = ciag_danych[i:i+8]
+            if len(bajt)==8:
+                liczba = int(bajt,2)
+                bajty_dziesietne.append(liczba)
+        return bajty_dziesietne
+
+    @staticmethod
+    def zamiana_na_bity(dane):
+        wynik = ""
+        for bajt in dane:
+            wynik += f"{bajt:08b}"
+        return wynik
